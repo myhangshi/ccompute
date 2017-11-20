@@ -2,7 +2,6 @@
 
 \usepackage[english]{babel}
 \usepackage{microtype}
-\usepackage{blindtext}
 \usepackage{listings}
 \usepackage{hyperref}
 \usepackage{csquotes}
@@ -11,7 +10,8 @@
 \lstset{
   language=C,
   basicstyle=\small,
-  breaklines=true}
+  breaklines=true
+}
 \frenchspacing 
 
 %%% Maketitle metadata
@@ -23,31 +23,21 @@
 		\normalfont \normalsize \textsc
 		{Coursera Course: Cloud Computing} \\ [25pt]
 		\horrule{0.5pt} \\[0.4cm]
-		\huge Capstone Project Task 1 Report \\
+		\huge Capstone Project Task 2 Report \\
 		\horrule{2pt} \\[0.5cm]
 }
-\author{
-		\normalfont 	\normalsize
-        Hang Shi\\[-3pt] \normalsize
-        \today
-}
-\date{}
+\author{Hang Shi\\[-3pt] }
+\date{\today\\[-3pt]}
 
 
 \begin{document}
-
 \maketitle
 
-
 \section{Overview}
-
-https://github.com/gitaroktato/cloud-capstone
-
-
-This report covers the design and implementation details for Cloud Computing Captone Project Task 1. The goals of this task are to perform the following:
+This report covers the design and implementation details for Cloud Computing Captone Project Task 2. The goals of this task are to perform the following:
 \begin{itemize}
 \item Extract and clean the transportation dataset, and then store the result in HDFS.
-\item Answer 2 questions from Group 1, 3 questions from Group 2, and both questions from Group 3 using Hadoop. Store the results for questions from Group 2 and Question 3.2 in Cassandra.   
+\item Answer 2 questions from Group 1, 3 questions from Group 2, and Question 3.2 using Spark. Store the results for questions from Group 2 and Question 3.2 in Cassandra.   
 \end{itemize}
  
 \section{Data Cleanup}
@@ -55,141 +45,103 @@ The first task is to clean and store the dataset. We  first retrieve and extract
 
 Afterwards, we explore the data set and decide on how we wish to clean it. Then we ignore unrelated rows and extract only the columns from the csv files. The raw data is in \path{/data/aviation/airline_ontime} directory. 
 
-Approaches: Two ways have been used to do the cleanup: 
+Python and Bash scripts are developed used to do the cleanup: 
 \begin{itemize} 
-\item A python script is developed on top of \href{https://docs.python.org/2/library/csv.html}{python CSV package} to achieve this. 
-\item Pig script, see \url{https://pig.apache.org/} for details. 
+\item A python script is developed on top of \href{https://docs.python.org/2/library/csv.html}{python CSV package} to extract the fields. 
+\item Bash scripts are used to loop through all data sets. 
 \end{itemize}
 
- Such data cleanup is a one-time job and below are the fields we extracted: 
-\begin{itemize}
-\item       AirlineID:chararray, --a8
-\item       Carrier:chararray,   --a9
-\item       FlightNum:int,       --a11
-\item       Origin:chararray,    --a12       
-\item       Dest:chararray,      --a18
-\item       DepDelay:float,      --a26
-\item       DepDel15:float,      --a28
-\item       ArrDelay:float,      --a37 
-\item       ArrDel15:float       --a39
-\end{itemize}
-
-The cleaned data are stored on HDFS via below hdfs dfs command  as tab delimetered fields with each line indicating one flight. 
+Such data cleanup is a one-time job. The cleaned data are stored on HDFS via below hdfs dfs command  as tab delimetered fields with each line indicating one flight. For question 3.2, only 2008 data is used. 
 \begin{lstlisting}{centered}
-	hdfs dfs -copyFromLocal <local files> <hdfs dir>  
+	Cmd: hdfs dfs -copyFromLocal <local files> <hdfs dir>  
+	Fields: Year, Month, Day, Weekday, FullDate, Airline, Carrier, Flight, Origin, Dest, CRSDepTime, DepDelay, ArrDelay
 \end{lstlisting}
- 
+
 \section{System Overview}
-\subsection{Hadoop MapReduce}
-The system is essentially a 4 node Apache Hadoop cluster with one namenode and three datanodes running on AWS EC2. 
-Hadoop Yarn runs and serves as the resource manager and application manager. Below link provides some useful information on the setup: 
+See figure 1 for system architecture details for this project. 
+
+\begin{figure}
+\centering
+\includegraphics[width=\linewidth,,keepaspectratio]{system_architecture.png}
+\caption{System Architecture for This Project.}
+\label{fig:verticalcell}
+\end{figure}
+
+\subsection{Spark on EC2}
+\subsection{Hadoop, Kafka, and Spark Streaming}
+The system is essentially a 4 node Apache Hadoop cluster with one namenode and three datanodes running on AWS EC2. Hadoop Yarn runs and serves as the resource manager and application manager. Kafka is used to stream the cleaned data stored in HDFS to Spark, which does the RDD/Data Frame processing before storing the results to NoSQL database. 
+
+TODO: Modify this link for EC2 Spark 
 
 \href{https://blog.insightdatascience.com/spinning-up-a-free-hadoop-cluster-step-by-step-c406d56bae42}{Spinning Up a Free Hadoop Cluster: Step by Step}
 
-\subsection{Cassandra} 
-Cassandra cluster is deployed on the three Hadoop datanodes to provide data replication and scalability. 
-The cluster run on the same rack and utilizes GossipingPropertyFileSnitch scheme. One of the nodes is assigned as the seed provider.
+\subsection{NOSQL Database: Cassandra} 
+Cassandra cluster is deployed on the three Hadoop datanodes to provide data replication and scalability. The cluster run on the same rack and utilizes GossipingPropertyFileSnitch scheme. One of the nodes is assigned as the seed provider. Initially version 3.6 is used, but due to the support of group by is missing in 3.6, version 3.11 is used. 
  
-
  
 \section{Group 1 Problems} 
 
-\begin{itemize} 
+\small \begin{itemize} 
 \item Problem 1.1: Rank the top 10 most popular airports by numbers of flights to/from the airport.
-Solution: We extracted the origin and destination city of the flight for each line of the cleaned files. It is done two steps: counting via map and reduce phases in Hadoop and sort to get top 10 airports. In the map phase, we generate pairs (origin, 1) and (dest, 1). In the reduce phase, if we see a new airport, we output the airport and count; if we see same airport, we add the count to existing counter. Once the counters are outputted, below commands can be used to get top airports (use 20 to allow duplicated top cases). 
-\begin{lstlisting}[language = C++]
-hadoop fs -cat /output/of/wordcount/part* | sort -n -k2 -r | head -n20
-\end{lstlisting}
-Alternatively, the top N problem can be solved via \href{https://github.com/adamjshook/mapreducepatterns/blob/master/MRDP/src/main/java/mrdp/ch3/TopTenDriver.java}{this MapReduce design pattern}. 
 \item Problem 1.2: Rank the top 10 airlines by on-time arrival performance
-In the map phase, we generate (airline, 1, delay). In the reduce phase, we use two maps: (airline, count), and (airline, total delay) and accumulate counter and delay into these two maps. Then we calculate arrival performance and sort them. Alternatively and if there are multiple reducers, we will use commands similar as in above problem to do sorting. 
-\item Problem 1.3: Rank the days of the week by on-time arrival performance
-This is a similar problem as Problem 1.2. We use (weekday, delay) as input data. In the map phase, we generate (weekday, 1, delay). In the reduce phase, we use two maps: (weekday, count), and (weekday, total delay) and accumulate counter and delay into these two maps. Then we calculate arrival performance and sort them.   
 \end{itemize}
+
+\textbf{Solution:} both problems are solved using same technique: stateful updates via Spark API updateStateByKey. See below for details. 
+\tiny \begin{lstlisting}[language = python] 
+def updateFunction(newValues, runningCount):
+    return sum(newValues, runningCount or 0)
+filtered = lines.map(lambda line: line.split("\t"))\
+                .flatMap(lambda w: [(w[3], 1), (w[4], 1)] )\
+                .reduceByKey(lambda a, b: a+b)\
+                .updateStateByKey(updateFunction)\
+                .transform(lambda r: r.sortBy(lambda (w, c): -c))
+\end{lstlisting}
+
  
 \section{Group 2 Problems}
- 
-\begin{itemize} 
-\item For each airport X, rank the top-10 carriers in decreasing order of on-time departure performance from X. We use Pig Latin script to generate the results into HDFS files and then store them into Cassandra database for queries. Below is the script: 
-\small\begin{verbatim}
-in  = LOAD '$PIG_IN_DIR' AS 
-          ( AirlineID:chararray, --a8
-            Carrier:chararray,   --a9
-            FlightNum:int,       --a11
-            Origin:chararray,    --a12       
-            Dest:chararray,      --a18
-            DepDelay:float,      --a26
-            DepDel15:float,      --a28
-            ArrDelay:float,      --a37 
-            ArrDel15:float       --a39
-          );
-group_by_origin_airline = GROUP in BY (Origin, Carrier, AirlineID);
-average_ontime = FOREACH group_by_origin_airline 
-                 GENERATE FLATTEN(group) AS (Origin, Carrier, AirlineID), 
-                          AVG(in.DepDelay) AS performance_index;
-group_by_origin = GROUP average_ontime BY Origin; 
-top_ten_airlines = FOREACH group_by_origin {
-   sorted_airlines = ORDER average_ontime BY performance_index ASC;
-   top_airlines = LIMIT sorted_airlines 10;
-   GENERATE FLATTEN(top_airlines);
-}
-
-X = FOREACH top_ten_airlines GENERATE $0, $1, $2, $3;
-
-STORE X into '$PIG_OUT_DIR'; 
-\end{verbatim}
-\normalsize
-
-\item For each airport X, rank the top-10 airports in decreasing order of on-time departure performance from X.
-
-Below is the PIG script (table loading part is ignored). 
-\small\begin{verbatim}
-group_by_origin_dest = GROUP in BY (Origin, Dest);
-
-average_ontime = FOREACH group_by_origin_dest 
-                 GENERATE FLATTEN(group) AS (Origin, Dest), 
-                          AVG(in.DepDelay) AS performance_index;
-
-group_by_origin = GROUP average_ontime BY Origin; 
-top_ten_airports = FOREACH group_by_origin {
-   sorted_airports = ORDER average_ontime BY performance_index ASC;
-   top_airports = LIMIT sorted_airports 10;
-   GENERATE FLATTEN(top_airports);
-}
-
-X = FOREACH top_ten_airports GENERATE $0, $1, $2;
-
-STORE X into '$PIG_OUT_DIR'; 
-\end{verbatim}
-\normalsize
-
-\item For each source-destination pair X-Y, rank the top-10 carriers in decreasing order of on-time arrival performance at Y from X.
-
-Below is the PIG script (table loading part is ignored). 
-\small\begin{verbatim}
-group_by_origin_dest_airline = GROUP in BY (Origin, Dest, AirlineID);
-
-average_ontime = FOREACH group_by_origin_dest_airline
-               GENERATE FLATTEN(group) AS (Origin, Dest, AirlineID),
-               AVG(in.ArrDelay) AS performance_index;
-
-group_by_origin_dest = GROUP average_ontime BY (Origin, Dest);
-
-top_ten_airlines = FOREACH group_by_origin_dest {
-   sorted_airlines = ORDER average_ontime BY performance_index ASC;
-   top_airlines = LIMIT sorted_airlines 10;
-   GENERATE FLATTEN(top_airlines);
-}
-
-X = FOREACH top_ten_airlines GENERATE $0, $1, $2, $3;
-
-STORE X into '$PIG_OUT_DIR';
-\end{verbatim}
-\normalsize
-
-%\item For each source-destination pair X-Y, determine the mean arrival delay (in minutes) for a flight from X to Y.
-
+\small \begin{itemize} 
+\item Problem 2.1: For each airport X, rank the top-10 carriers in decreasing order of on-time departure performance from X. 
+\item Problem 2.2: For each airport X, rank the top-10 airports in decreasing order of on-time departure performance from X.
+\item Problem 2.3: For each source-destination pair X-Y, rank the top-10 carriers in decreasing order of on-time arrival performance at Y from X.
+\item Problem 2.4: For each source-destination pair X-Y, determine the mean arrival delay (in minutes) for a flight from X to Y.
 \end{itemize}
+
+\textbf{Solution:} All four questions are solved using same approach: Spark stateful RDD transformation, Data Frame API, and Cassandra Spark API. See below two code examples: 
+\tiny \begin{lstlisting}[language = python] 
+# RDD Processing
+def updateFunction(newValues, runningCount):
+    values, counter, avg_delay = runningCount or (0., 0, 0.)
+    for val in newValues: 
+        values += val[0]
+        counter += val[1]
+    return (values, counter, values/counter) 
+f1 = lines.map(lambda line:line.split(","))\
+          .map(lambda f:Flight(f))\
+          .map(lambda f:((f.Origin, f.Dest),(f.DepDelay, 1)))\
+          .updateStateByKey(updateFunction)
+filtered = f1.map(lambda (x, y):(x[0], y[2], x[1]))
+filtered.foreachRDD(lambda rdd:print_rdd(rdd))
+\end{lstlisting}
+
+\tiny \begin{lstlisting}[language = python] 
+# Data Frame Transformation and Data Storing 
+schema = StructType([
+         StructField("origin", StringType(), True),
+         StructField("delay", FloatType(), True), 
+         StructField("dest", StringType(), True)
+         ])
+df = getSqlContextInstance(rdd.context).createDataFrame(rdd, schema);  
+df.show() 
+#insert into cassandra 
+df.write.format("org.apache.spark.sql.cassandra")\
+    .mode('overwrite').options(table="g2e2", keyspace="test")\
+    .save()
+\end{lstlisting}
+
+
+
+
+
 
 \section{Group 3 Problems}
 \begin{itemize}
@@ -210,7 +162,7 @@ flights by arrival performance and the second one which computes the options Tom
 \item Removal of unused data columns: only needed columns have been imported from the original dataset, thus lowering the needs for data transfer and storage capacity.
 \item Data ordering and partitioning: the import script orders and partitions by date the data from the original dataset. This way the import process into HDFS is faster.
 \item Data preload into HDFS: data  is loaded to HDFS before starting to process it. This way, we can achieve persistent storage in HDFS and fast access from HDFS.
-\item One optimization is to use the combiner in the map phase in order to minimize the network traffic. This is used in problems in group 1. For example, in question 1, use same reducer class as combiner class. 
+\item During Kafka streaming, the Spark executor can't handle full speed of Kafka streaming, two approaches are used: increase the memory when inovking spark streaming, and sleep a small interval streaming between two files. 
 
 \end{itemize} 
  

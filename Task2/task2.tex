@@ -67,27 +67,22 @@ See figure 1 for system architecture details for this project.
 \label{fig:verticalcell}
 \end{figure}
 
-\subsection{Spark on EC2}
 \subsection{Hadoop, Kafka, and Spark Streaming}
-The system is essentially a 4 node Apache Hadoop cluster with one namenode and three datanodes running on AWS EC2. Hadoop Yarn runs and serves as the resource manager and application manager. Kafka is used to stream the cleaned data stored in HDFS to Spark, which does the RDD/Data Frame processing before storing the results to NoSQL database. 
+The system is essentially a 4 node Apache Hadoop cluster with one namenode and three datanodes running on AWS EC2. Hadoop Yarn runs and serves as the resource manager and application manager. Kafka is used to stream the cleaned data stored in HDFS to Spark, which does the RDD/Data Frame processing before storing the results to NoSQL database. See below link for details on how to set up and run Spark on EC2. 
 
-TODO: Modify this link for EC2 Spark 
-
-\href{https://blog.insightdatascience.com/spinning-up-a-free-hadoop-cluster-step-by-step-c406d56bae42}{Spinning Up a Free Hadoop Cluster: Step by Step}
+\href{https://spark.apache.org/docs/1.6.2/ec2-scripts.html}{Running Spark on EC2}
 
 \subsection{NOSQL Database: Cassandra} 
 Cassandra cluster is deployed on the three Hadoop datanodes to provide data replication and scalability. The cluster run on the same rack and utilizes GossipingPropertyFileSnitch scheme. One of the nodes is assigned as the seed provider. Initially version 3.6 is used, but due to the support of group by is missing in 3.6, version 3.11 is used. 
  
  
 \section{Group 1 Problems} 
-
-\small \begin{itemize} 
+\begin{itemize} 
 \item Problem 1.1: Rank the top 10 most popular airports by numbers of flights to/from the airport.
 \item Problem 1.2: Rank the top 10 airlines by on-time arrival performance
 \end{itemize}
-
 \textbf{Solution:} both problems are solved using same technique: stateful updates via Spark API updateStateByKey. See below for details. 
-\tiny \begin{lstlisting}[language = python] 
+\begin{lstlisting}[basicstyle=\small,language = python] 
 def updateFunction(newValues, runningCount):
     return sum(newValues, runningCount or 0)
 filtered = lines.map(lambda line: line.split("\t"))\
@@ -99,15 +94,14 @@ filtered = lines.map(lambda line: line.split("\t"))\
 
  
 \section{Group 2 Problems}
-\small \begin{itemize} 
+\begin{itemize} 
 \item Problem 2.1: For each airport X, rank the top-10 carriers in decreasing order of on-time departure performance from X. 
 \item Problem 2.2: For each airport X, rank the top-10 airports in decreasing order of on-time departure performance from X.
 \item Problem 2.3: For each source-destination pair X-Y, rank the top-10 carriers in decreasing order of on-time arrival performance at Y from X.
 \item Problem 2.4: For each source-destination pair X-Y, determine the mean arrival delay (in minutes) for a flight from X to Y.
 \end{itemize}
-
-\textbf{Solution:} All four questions are solved using same approach: Spark stateful RDD transformation, Data Frame API, and Cassandra Spark API. See below two code examples: 
-\tiny \begin{lstlisting}[language = python] 
+\textbf{Solution:} All four questions are solved using same approach: Spark stateful RDD transformation, Data Frame API, and Cassandra Spark API. See below two code examples from problem 2.2. Other questions are similar. 
+\begin{lstlisting}[basicstyle=\small,language = python] 
 # RDD Processing
 def updateFunction(newValues, runningCount):
     values, counter, avg_delay = runningCount or (0., 0, 0.)
@@ -123,7 +117,7 @@ filtered = f1.map(lambda (x, y):(x[0], y[2], x[1]))
 filtered.foreachRDD(lambda rdd:print_rdd(rdd))
 \end{lstlisting}
 
-\tiny \begin{lstlisting}[language = python] 
+\begin{lstlisting}[basicstyle=\small,language = python] 
 # Data Frame Transformation and Data Storing 
 schema = StructType([
          StructField("origin", StringType(), True),
@@ -138,32 +132,55 @@ df.write.format("org.apache.spark.sql.cassandra")\
     .save()
 \end{lstlisting}
 
-
-
-
-
-
-\section{Group 3 Problems}
+\section{Problem 3.2}
 \begin{itemize}
-\item Problem 3.1. Does the popularity distribution of airports follow a Zipf distribution? If not, what distribution does it follow?
-Zipf’s law stats that given some corpus or natural language utterances, the frequency of any word is inversely proportional to its rank in the frequency table. In our case it means that the airport with a higher rank should have a double number of flights compare with the next airport in rank. Even if from the Flights by Airport figure we can hope for a Zipf distribution, after doing a log-log plot we can see that Airports rank by number of flights is not following this distribution (log log for Zipf should be a straight line and is not). gnuplot tool is used to do plotting and it can be proven that this distribution is not Zipf but more a Lognormal one since the bottom half look very different than the top half. 
 \item Problem 3.2. Tom wants to travel from airport X to airport Z. However, Tom also wants to stop at airport Y for some sightseeing on the way. More concretely, Tom has the following requirements (see Task 1 Queries for specific queries):
 \begin{itemize}
 \item A. The second leg of the journey (flight Y-Z) must depart two days after the first leg (flight X-Y). For example, if X-Y departs January 5, 2008, Y-Z must depart January 7, 2008.
 \item B. Tom wants his flights scheduled to depart airport X before 12:00 PM local time and to depart airport Y after 12:00 PM local time.
 \item C. Tom wants to arrive at each destination with as little delay as possible.
-It is solved by creating two MapReduce Jobs. One which filter the
-flights by arrival performance and the second one which computes the options Tom has and pick up the best one based on arrival performance. For the first map reduce the key is based on Origin, Destination and FlightDate. In the second MapReduce we will receive a list of best arrival flights grouped by Origin-Destination-Date and from here using the 12h departure condition we can generate for each day all the options Tom has.
 \end{itemize}
 \end{itemize}
+\textbf{Solution:} First the dataset is mapped into two dataset f{\_}xy and f{\_}yz based on whether the departure time is earlier than 12:00. During f{\_}yz processing, the departure date is substracted two days. Then the two dataset are joined together with origin of f{\_}xy and destination of f{\_}yz are the same, and dates are two days apart. The results are stored into Cassandra database using same approach as in group 2 problems. The primary and cluster keys are days combined with airport and delay, like "PHX{\_}JFK{\_}MSP{\_}2008-09-07". 
 
-\section{Optimization Techniques}
+\begin{lstlisting}[basicstyle=\small,language = python] 
+def map_xy(f): 
+    fdate = datetime.date(f.Year, f.Month, f.Day)
+    return ((str(fdate), f.Dest), f)
+def map_yz(f):
+    fdate = datetime.date(f.Year, f.Month, f.Day)
+    fdate -= datetime.timedelta(days=2)
+    return ((str(fdate), f.Origin), f)
+def process_record(record): 
+    f_xy = record[1][0]
+    f_yz = record[1][1]
+    route = '_'.join((f_xy.Origin, f_xy.Dest, f_yz.Dest, record[0][0]))
+    delay =  f_xy.ArrDelay + f_yz.ArrDelay
+    details = "%s;%s" % (f_xy, f_yz)
+    return (route, delay, f_xy.FlightNum, f_yz.FlightNum, details)    
+# RDD Processing
+f_xy = ff.map(map_xy).filter(lambda (k,v): v.CRSDepTime < '1200')
+f_yz = ff.map(map_yz).filter(lambda (k,v): v.CRSDepTime > '1200')
+
+f_xyz = f_xy.join(f_yz).map(process_record) 
+f_xyz.foreachRDD(lambda rdd: print_rdd(rdd))
+\end{lstlisting}
+
+
+\section{Optimization and Discussion}
 \begin{itemize}
 \item Removal of unused data columns: only needed columns have been imported from the original dataset, thus lowering the needs for data transfer and storage capacity.
 \item Data ordering and partitioning: the import script orders and partitions by date the data from the original dataset. This way the import process into HDFS is faster.
 \item Data preload into HDFS: data  is loaded to HDFS before starting to process it. This way, we can achieve persistent storage in HDFS and fast access from HDFS.
-\item During Kafka streaming, the Spark executor can't handle full speed of Kafka streaming, two approaches are used: increase the memory when inovking spark streaming, and sleep a small interval streaming between two files. 
-
+\item During Kafka streaming, the Spark executor can't handle full speed of Kafka streaming, two approaches are used: 
+\begin{itemize}
+\item increase the memory when inovking spark streaming; 
+\item sleep a small interval streaming between two files. 
+\end{itemize} 
+\item For Problem 3.2, the dataset of join results are huge, it is better to do filtering of data for queries. 
+\item AWS DynamoDB are also used in some of the problem. My personal opinion is that it is not as user friendly as Cassandra. 
+\item For cleaned data, it is easier to use a Python data structure (class) to store that during runtime, see the codes in flight.py for details. 
+\item the results from this project do make sense. 
 \end{itemize} 
  
 \section{Code and Video Location}
@@ -171,6 +188,6 @@ flights by arrival performance and the second one which computes the options Tom
 \item Code:    \url{https://github.com/myhangshi/ccompute}
 \item Video:   \url{https://vimeo.com/241272936}
 \end{itemize} 
- 
+
 
 \end{document}

@@ -38,6 +38,7 @@ signal.signal(signal.SIGINT, close_handler)
 
 
 sc = SparkContext(appName='g1ex1', conf=config)
+sc.setLogLevel("ERROR")
 ssc = StreamingContext(sc, 10)
 ssc.checkpoint('file:///tmp/g1ex1')
 

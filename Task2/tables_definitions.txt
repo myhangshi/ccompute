@@ -1,11 +1,109 @@
+* Data Clean up (Shell Scripts, Python Scripts, etc)
+
+* Utility Scripts (Kafka, Topic, Producer etc Scripts)
+
+* Table Definitions 
+
+* G1, two problems 
+
+* G2, four problems  
+
+* G3, one problem (3.2)
+
+G2 Table Definitions 
+
 CREATE TABLE test.g2e1 (origin text, delay float, airline text, carrier text, PRIMARY KEY (origin, delay) ); 
 
-
 CREATE TABLE test.g2e2 (origin text, delay float, dest text, PRIMARY KEY (origin, delay) ); 
-
 
 CREATE TABLE test.g2e3 (origin text, dest text, delay float, airline text, PRIMARY KEY ((origin, dest), delay)); 
 
 CREATE TABLE test.g2e4 (origin text, dest text, delay float, PRIMARY KEY ((origin, dest), delay)); 
 
+
+G2E1 Queries 
+describe g2e1; 
+select origin, airline, carrier, delay from g2e1 where origin = 'SRQ' limit 10; 
+select origin, airline, carrier, delay from g2e1 where origin = 'CMH' limit 10; 
+select origin, airline, carrier, delay from g2e1 where origin = 'JFK' limit 10; 
+select origin, airline, carrier, delay from g2e1 where origin = 'SEA' limit 10; 
+select origin, airline, carrier, delay from g2e1 where origin = 'BOS' limit 10; 
+
+G2E2 Queries 
+describe g2e1; 
+select origin, dest, delay from g2e2 where origin = 'SRQ' limit 10; 
+select origin, dest, delay from g2e2 where origin = 'CMH' limit 10; 
+select origin, dest, delay from g2e2 where origin = 'JFK' limit 10; 
+select origin, dest, delay from g2e2 where origin = 'SEA' limit 10; 
+select origin, dest, delay from g2e2 where origin = 'BOS' limit 10; 
+
+G2E3 Queries 
+describe g2e3; 
+select origin, dest, airline, delay from g2e3 where origin = 'LGA' and dest = 'BOS' limit 10; 
+select origin, dest, airline, delay from g2e3 where origin = 'BOS' and dest = 'LGA' limit 10; 
+select origin, dest, airline, delay from g2e3 where origin = 'OKC' and dest = 'DFW' limit 10; 
+select origin, dest, airline, delay from g2e3 where origin = 'MSP' and dest = 'ATL' limit 10; 
+
+
+
+G2E4 Queries
+select origin, dest, delay from g2e4 where origin = 'LGA' and dest = 'BOS'; 
+select origin, dest, delay from g2e4 where origin = 'BOS' and dest = 'LGA'; 
+select origin, dest, delay from g2e4 where origin = 'OKC' and dest = 'DFW'; 
+select origin, dest, delay from g2e4 where origin = 'MSP' and dest = 'ATL'; 
+
+
+G1 Execution 
+
+
+./start-kafka.sh 
+
+./create-kafka-topic.sh g1e1
+
+
+spark-submit  --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2,com.datastax.spark:spark-cassandra-connector_2.11:2.0.1   ./g1e1.py localhost:2181 g1e1  | tee t4.log 
+
+
+
+
+
+
+
+
+G3E2 Table 
 CREATE TABLE test.g3e2 (route text, delay float, details text, f1 text, f2 text, PRIMARY KEY (route, f1, f2));  
+
+G3E2 Queries 
+
+select route, f1, f2, delay from g3e2 where route = 'DFW_STL_ORD_2008-01-24' group by delay limit 3;
+
+select route, f1, f2, delay from g3e2 where route = 'BOS_ATL_LAX_2008-04-03' group by delay limit 3;
+
+select route, f1, f2, delay from g3e2 where route = 'LAX_MIA_LAX_2008-05-16' group by delay limit 3;
+
+select route, f1, f2, delay from g3e2 where route = 'PHX_JFK_MSP_2008-09-07' group by delay limit 3;
+
+
+
+G3E2 Execution 
+spark-submit  --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2,com.datastax.spark:spark-cassandra-connector_2.11:2.0.1   ./g3e2.py localhost:2181 g3e2  | tee t4.log 
+
+G2E1 Execution 
+spark-submit  --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2,com.datastax.spark:spark-cassandra-connector_2.11:2.0.1   ./g2e1.py localhost:2181 g2e1  | tee t4.log 
+
+
+G2E2 Execution 
+spark-submit  --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2,com.datastax.spark:spark-cassandra-connector_2.11:2.0.1   ./g2e2.py localhost:2181 g2e2  | tee t4.log 
+
+
+G2E3 Execution 
+spark-submit  --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2,com.datastax.spark:spark-cassandra-connector_2.11:2.0.1   ./g2e3.py localhost:2181 g2e3  | tee t4.log 
+
+G2E4 Execution 
+spark-submit  --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2,com.datastax.spark:spark-cassandra-connector_2.11:2.0.1   ./g2e3.py localhost:2181 g2e4  | tee t4.log 
+
+G1E1 Execution (No Cassandra needed)
+spark-submit  --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2   ./g1e1.py localhost:2181 g1e1  | tee t4.log 
+
+G1E2 Execution (No Cassandra needed)
+spark-submit  --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2   ./g1e2.py localhost:2181 g1e2  | tee t4.log 

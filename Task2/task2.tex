@@ -14,32 +14,19 @@
 }
 \frenchspacing 
 
-%%% Maketitle metadata
-\newcommand{\horrule}[1]{\rule{\linewidth}{#1}} 	
-
-\title{
-		%\vspace{-1in} 	
-		\usefont{OT1}{bch}{b}{n}
-		\normalfont \normalsize \textsc
-		{Coursera Course: Cloud Computing} \\ [25pt]
-		\horrule{0.5pt} \\[0.4cm]
-		\huge Capstone Project Task 2 Report \\
-		\horrule{2pt} \\[0.5cm]
-}
-\author{Hang Shi\\[-3pt] }
-\date{\today\\[-3pt]}
-
+%\author{Hang Shi}
+\title{Cloud Computing Project Task 2 Report}
+\date{}
 
 \begin{document}
 \maketitle
-
+		
 \section{Overview}
 This report covers the design and implementation details for Cloud Computing Captone Project Task 2. The goals of this task are to perform the following:
 \begin{itemize}
 \item Extract and clean the transportation dataset, and then store the result in HDFS.
 \item Answer 2 questions from Group 1, 3 questions from Group 2, and Question 3.2 using Spark. Store the results for questions from Group 2 and Question 3.2 in Cassandra.   
-\end{itemize}
- 
+\end{itemize} 
 \section{Data Cleanup}
 The first task is to clean and store the dataset. We  first retrieve and extract the dataset from the EBS volume snapshot by following steps in \url{http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-restoring-volume.html}. One key thing to note is that we need to create EC2 instance in the same region and availabbility zone as the data EBS snapshot (snap-e1608d88 in us-east-1d).   
 
@@ -59,23 +46,17 @@ Such data cleanup is a one-time job. The cleaned data are stored on HDFS via bel
 
 \section{System Overview}
 See figure 1 for system architecture details for this project. 
-
 \begin{figure}
 \centering
 \includegraphics[width=\linewidth,,keepaspectratio]{system_architecture.png}
 \caption{System Architecture for This Project.}
 \label{fig:verticalcell}
 \end{figure}
-
 \subsection{Hadoop, Kafka, and Spark Streaming}
 The system is essentially a 4 node Apache Hadoop cluster with one namenode and three datanodes running on AWS EC2. Hadoop Yarn runs and serves as the resource manager and application manager. Kafka is used to stream the cleaned data stored in HDFS to Spark, which does the RDD/Data Frame processing before storing the results to NoSQL database. See below link for details on how to set up and run Spark on EC2. 
-
 \href{https://spark.apache.org/docs/1.6.2/ec2-scripts.html}{Running Spark on EC2}
-
 \subsection{NOSQL Database: Cassandra} 
 Cassandra cluster is deployed on the three Hadoop datanodes to provide data replication and scalability. The cluster run on the same rack and utilizes GossipingPropertyFileSnitch scheme. One of the nodes is assigned as the seed provider. Initially version 3.6 is used, but due to the support of group by is missing in 3.6, version 3.11 is used. 
- 
- 
 \section{Group 1 Problems} 
 \begin{itemize} 
 \item Problem 1.1: Rank the top 10 most popular airports by numbers of flights to/from the airport.
@@ -91,8 +72,6 @@ filtered = lines.map(lambda line: line.split("\t"))\
                 .updateStateByKey(updateFunction)\
                 .transform(lambda r: r.sortBy(lambda (w, c): -c))
 \end{lstlisting}
-
- 
 \section{Group 2 Problems}
 \begin{itemize} 
 \item Problem 2.1: For each airport X, rank the top-10 carriers in decreasing order of on-time departure performance from X. 
@@ -131,8 +110,14 @@ df.write.format("org.apache.spark.sql.cassandra")\
     .mode('overwrite').options(table="g2e2", keyspace="test")\
     .save()
 \end{lstlisting}
-
-\section{Problem 3.2}
+\textbf{Data Model or Cassandra Table Definitions: }
+\begin{lstlisting}[basicstyle=\small,language = sql] 
+CREATE TABLE test.g2e1 (origin text, delay float, airline text, carrier text, PRIMARY KEY (origin, delay) ); 
+CREATE TABLE test.g2e2 (origin text, delay float, dest text, PRIMARY KEY (origin, delay) ); 
+CREATE TABLE test.g2e3 (origin text, dest text, delay float, airline text, PRIMARY KEY ((origin, dest), delay)); 
+CREATE TABLE test.g2e4 (origin text, dest text, delay float, PRIMARY KEY ((origin, dest), delay)); 
+\end{lstlisting}
+\section{Group 3, Problem 3.2}
 \begin{itemize}
 \item Problem 3.2. Tom wants to travel from airport X to airport Z. However, Tom also wants to stop at airport Y for some sightseeing on the way. More concretely, Tom has the following requirements (see Task 1 Queries for specific queries):
 \begin{itemize}
@@ -142,7 +127,6 @@ df.write.format("org.apache.spark.sql.cassandra")\
 \end{itemize}
 \end{itemize}
 \textbf{Solution:} First the dataset is mapped into two dataset f{\_}xy and f{\_}yz based on whether the departure time is earlier than 12:00. During f{\_}yz processing, the departure date is substracted two days. Then the two dataset are joined together with origin of f{\_}xy and destination of f{\_}yz are the same, and dates are two days apart. The results are stored into Cassandra database using same approach as in group 2 problems. The primary and cluster keys are days combined with airport and delay, like "PHX{\_}JFK{\_}MSP{\_}2008-09-07". 
-
 \begin{lstlisting}[basicstyle=\small,language = python] 
 def map_xy(f): 
     fdate = datetime.date(f.Year, f.Month, f.Day)
@@ -165,8 +149,10 @@ f_yz = ff.map(map_yz).filter(lambda (k,v): v.CRSDepTime > '1200')
 f_xyz = f_xy.join(f_yz).map(process_record) 
 f_xyz.foreachRDD(lambda rdd: print_rdd(rdd))
 \end{lstlisting}
-
-
+\textbf{Data Model or Cassandra Table Definitions: }
+\begin{lstlisting}[basicstyle=\small,language = sql] 
+CREATE TABLE test.g3e2 (route text, delay float, details text, f1 text, f2 text, PRIMARY KEY (route, f1, f2));  
+\end{lstlisting} 
 \section{Optimization and Discussion}
 \begin{itemize}
 \item Removal of unused data columns: only needed columns have been imported from the original dataset, thus lowering the needs for data transfer and storage capacity.
@@ -174,13 +160,13 @@ f_xyz.foreachRDD(lambda rdd: print_rdd(rdd))
 \item Data preload into HDFS: data  is loaded to HDFS before starting to process it. This way, we can achieve persistent storage in HDFS and fast access from HDFS.
 \item During Kafka streaming, the Spark executor can't handle full speed of Kafka streaming, two approaches are used: 
 \begin{itemize}
-\item increase the memory when inovking spark streaming; 
-\item sleep a small interval streaming between two files. 
+\item Increase the memory when inovking spark streaming; 
+\item Sleep a small interval between streaming two files. 
 \end{itemize} 
 \item For Problem 3.2, the dataset of join results are huge, it is better to do filtering of data for queries. 
 \item AWS DynamoDB are also used in some of the problem. My personal opinion is that it is not as user friendly as Cassandra. 
 \item For cleaned data, it is easier to use a Python data structure (class) to store that during runtime, see the codes in flight.py for details. 
-\item the results from this project do make sense. 
+\item The results from the design of this project do make sense. 
 \end{itemize} 
  
 \section{Code and Video Location}

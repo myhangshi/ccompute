@@ -1,0 +1,11 @@
+CREATE TABLE test.g2e1 (origin text, delay float, airline text, carrier text, PRIMARY KEY (origin, delay) ); 
+
+
+CREATE TABLE test.g2e2 (origin text, delay float, dest text, PRIMARY KEY (origin, delay) ); 
+
+
+CREATE TABLE test.g2e3 (origin text, dest text, delay float, airline text, PRIMARY KEY ((origin, dest), delay)); 
+
+CREATE TABLE test.g2e4 (origin text, dest text, delay float, PRIMARY KEY ((origin, dest), delay)); 
+
+CREATE TABLE test.g3e2 (route text, delay float, details text, f1 text, f2 text, PRIMARY KEY (route, f1, f2));  

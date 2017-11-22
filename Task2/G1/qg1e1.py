@@ -13,6 +13,6 @@ def get_result(sess, top=10):
 cluster = Cluster()
 session = cluster.connect()
 
-print("\n\n\nThe results for %s are ")
+print("\n\n\nThe results for are ")
 get_result(session, top=10)
 

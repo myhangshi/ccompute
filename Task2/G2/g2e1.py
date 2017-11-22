@@ -5,8 +5,6 @@ from pyspark.streaming.kafka import KafkaUtils
 from pyspark.sql import SQLContext, Row
 from pyspark.sql.types import *
 
-
-
 import sys
 import time
 import signal 
@@ -73,8 +71,8 @@ def print_rdd(rdd):
     #insert into cassandra 
     test_df.write\
     .format("org.apache.spark.sql.cassandra")\
-    .mode('overwrite')\
-    .options(table="g2e1", keyspace="test")\
+    .mode('append')\
+    .options(table="g2e1s", keyspace="test")\
     .save()
 
     print('==========XYZ E===================')

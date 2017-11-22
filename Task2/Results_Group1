@@ -1,0 +1,26 @@
+Results for Question 1.1  Rank the top 10 most popular airports by numbers of flights to/from the airport.
+ORD  12449354 
+ATL  11540422  
+DFW  10799303 
+LAX  7723596   
+PHX  6585534  
+DEN  6273787   
+DTW  5636622   
+IAH  5480734   
+MSP  5199213   
+SFO  5171023  
+
+Results for Question 1.2 Rank the top 10 airlines by on-time arrival performance.
+
+HA   3.9542668 
+AQ   4.9505897 
+PS   5.627902  
+ML   8.518365  
+WN   9.025299  
+F9   9.871182  
+PA   10.189628 
+US   10.285916 
+NW   10.332496 
+EA   10.360811 
+
+

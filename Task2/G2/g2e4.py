@@ -69,8 +69,8 @@ def print_rdd(rdd):
     #insert into cassandra 
     test_df.write\
     .format("org.apache.spark.sql.cassandra")\
-    .mode('overwrite')\
-    .options(table="g2e2", keyspace="test")\
+    .mode('append')\
+    .options(table="g2e4s", keyspace="test")\
     .save()
 
     print('==========XYZ E===================')

@@ -11,23 +11,6 @@ import signal
 
 from flight import Flight 
 
-#group_by_origin_airline = GROUP in BY (Origin, Carrier, AirlineID);
-
-#average_ontime = FOREACH group_by_origin_airline 
-#                 GENERATE FLATTEN(group) AS (Origin, Carrier, AirlineID), 
-#                          AVG(in.DepDelay) AS performance_index;
-
-#group_by_origin = GROUP average_ontime BY Origin; 
- 
-#top_ten_airlines = FOREACH group_by_origin {
-#   sorted_airlines = ORDER average_ontime BY performance_index ASC;
-#   top_airlines = LIMIT sorted_airlines 10;
-#   GENERATE FLATTEN(top_airlines);
-#}
-
-#X = FOREACH top_ten_airlines GENERATE TOTUPLE( TOTUPLE( 'origin',$0), TOTUPLE( 'carrier',$1), TOTUPLE('airline', $2 )), TOTUPLE($3);
-
-
 config = SparkConf()
 config.set("spark.streaming.stopGracefullyOnShutdown", "true") 
 	

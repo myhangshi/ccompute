@@ -52,14 +52,15 @@ def print_rdd(rdd):
     schema = StructType([
         StructField("origin", StringType(), True),
         StructField("dest", StringType(), True), 
-        StructField("airline", StringType(), True),       
+        StructField("airline", StringType(), True), 
+        StructField("carrier", StringType(), True),       
         StructField("delay", FloatType(), True), 
         ])
     
     test_df = getSqlContextInstance(rdd.context).createDataFrame(rdd, schema);  
     #"origin:string, delay:float, carrier:string,  ariline:string");  
 
-    test_df.show() 
+    #test_df.show() 
 
     #insert into cassandra 
     test_df.write\
@@ -93,10 +94,10 @@ def updateFunction(newValues, runningCount):
 
 f1 = lines.map(lambda line: line.split(","))\
         		.map(lambda f: Flight(f))\
-                .map(lambda f: ((f.Origin, f.Dest, f.Carrier, f.Carrier), (f.ArrDelay, 1)))\
+                .map(lambda f: ((f.Origin, f.Dest, f.Airline, f.Carrier), (f.ArrDelay, 1)))\
         		.updateStateByKey(updateFunction)
 
-filtered = f1.map(lambda (x, y): (x[0], x[1], x[3], y[2]))
+filtered = f1.map(lambda (x, y): (x[0], x[1], x[2], x[3], y[2]))
 
 filtered.foreachRDD(lambda rdd: print_rdd(rdd))
 #filtered.pprint() 

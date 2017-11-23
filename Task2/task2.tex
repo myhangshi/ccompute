@@ -185,7 +185,8 @@ CREATE TABLE test.g3e2 (route text, delay float, details text, f1 text, f2 text,
 \item AWS DynamoDB are also used in some of the problem. My personal opinion is that it is not as user friendly as Cassandra. 
 \item For cleaned data, it is easier to use a Python data structure (class) to store that during runtime, see the codes in flight.py for details. 
 \item Python Cassandra Batch operation is used to insert and update data to reduce the connection set up and teardown overhead. 
-\item The results from the design of this project do make sense.For question 3, 2, batch operation may work better; for other problems, streaming processing is faster and provides many useful operations such as join, filter, reduce, stateful update, and map transformation. 
+\item The results from the design of this project do make sense. Some results are slightly different from sample solution. If I have more time, I would check if not including cancelled or diverted flight may help. 
+\item For question 3, 2, batch operation may work better; for other problems, streaming processing is faster and provides many useful operations such as join, filter, reduce, stateful update, and map transformation. 
 \end{itemize} 
  
 \section{Code and Video Location}

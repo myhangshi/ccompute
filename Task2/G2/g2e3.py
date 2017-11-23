@@ -10,25 +10,14 @@ from pyspark.sql.types import *
 import sys
 import time
 import signal 
+import itertools 
+import cassandra 
 
+from cassandra.cluster import Cluster
+from cassandra.query import named_tuple_factory 
 from flight import Flight 
+from itertools import islice, chain
 
-#group_by_origin_dest_airline = GROUP in BY (Origin, Dest, AirlineID);
-
-
-#average_ontime = FOREACH group_by_origin_dest_airline
-#               GENERATE FLATTEN(group) AS (Origin, Dest, AirlineID),
-#               AVG(in.ArrDelay) AS performance_index;
-
-#group_by_origin_dest = GROUP average_ontime BY (Origin, Dest);
-
-#top_ten_airlines = FOREACH group_by_origin_dest {
-#   sorted_airlines = ORDER average_ontime BY performance_index ASC;
-#   top_airlines = LIMIT sorted_airlines 10;
-#   GENERATE FLATTEN(top_airlines);
-#}
-
-#X = FOREACH top_ten_airlines GENERATE  $0, $1, $3, $2;
 
 config = SparkConf()
 config.set("spark.streaming.stopGracefullyOnShutdown", "true") 
@@ -36,45 +25,51 @@ config.set("spark.streaming.stopGracefullyOnShutdown", "true")
 filtered = None 
 ssc = None 
 
-def getSqlContextInstance(sparkContext):
-    if ('sqlContextSingletonInstance' not in globals()):
-        globals()['sqlContextSingletonInstance'] = SQLContext(sparkContext)
-    return globals()['sqlContextSingletonInstance']
+def get_chunks(seq, n):
+    # https://stackoverflow.com/a/312464/190597 (Ned Batchelder)
+    """ Yield successive n-sized chunks from seq."""
+    for i in xrange(0, len(seq), n):
+        yield seq[i:i + n]
 
-def print_rdd(rdd): 
-    print('==========XYZ S===================')
-        # Get the singleton instance of SQLContext
-    if rdd.isEmpty(): 
-        return 
 
-#((f.Origin, f.Dest, f.Carrier, f.Airline), (f.ArrDelay, 1)))
+def grouper_it(n, iterable):
+    it = iter(iterable)
+    while True:
+        chunk_it = itertools.islice(it, n)
+        try:
+            first_el = next(chunk_it)
+        except StopIteration:
+            return
+        yield itertools.chain((first_el,), chunk_it)
 
-    schema = StructType([
-        StructField("origin", StringType(), True),
-        StructField("dest", StringType(), True), 
-        StructField("airline", StringType(), True), 
-        StructField("carrier", StringType(), True),       
-        StructField("delay", FloatType(), True), 
-        ])
+
+def save_data_to_DB(iter): 
+    cluster = Cluster() 
+    session = cluster.connect() 
+
+    for b in grouper_it(50, iter):
+        print('==========XYZ S===================')
     
-    test_df = getSqlContextInstance(rdd.context).createDataFrame(rdd, schema);  
-    #"origin:string, delay:float, carrier:string,  ariline:string");  
-
-    #test_df.show() 
-
-    #insert into cassandra 
-    test_df.write\
-    .format("org.apache.spark.sql.cassandra")\
-    .mode('append')\
-    .options(table="g2e3s", keyspace="test")\
-    .save()
-
-    print('==========XYZ E===================')
+        data = ''.join(["""
+    INSERT INTO test.g2e3 (origin, dest, airline, carrier, delay)
+    VALUES ('%s', '%s', '%s', '%s', %s); \n
+    """ % (r[0], r[1], r[2], r[3], str(r[4])) for r in b ])  
+        print(data)
+        session.execute_async("BEGIN BATCH\n" + data + " APPLY BATCH")
+        print('==========XYZ E===================')
+    
+    session.shutdown() 
+    
     return 
+
+
 
 #sc = SparkContext(appName='g1ex1', conf=config, pyFiles=['flight.py'])
 config.set('spark.streaming.stopGracefullyOnShutdown', True)
 
+config.set('spark.executor.memory', "4G")
+config.set('spark.driver.memory', "4G")
+   
 sc = SparkContext(appName='g1ex2', conf=config)
 sc.setLogLevel("ERROR")
 ssc = StreamingContext(sc, 10)
@@ -99,7 +94,9 @@ f1 = lines.map(lambda line: line.split(","))\
 
 filtered = f1.map(lambda (x, y): (x[0], x[1], x[2], x[3], y[2]))
 
-filtered.foreachRDD(lambda rdd: print_rdd(rdd))
+#filtered.foreachRDD(lambda rdd: print_rdd(rdd))
+filtered.foreachRDD(lambda rdd: rdd.foreachPartition(save_data_to_DB))
+
 #filtered.pprint() 
 
 # start streaming process

@@ -61,34 +61,7 @@ def print_rdd(rdd):
     print('==========XYZ E===================')
     return 
 
-#not used any more, keep for record 
-def print_rdd_first(rdd):
-    print('==========XYZ S===================')
-        # Get the singleton instance of SQLContext
-    if rdd.isEmpty(): 
-        return 
 
-    sqlContext = getSqlContextInstance(rdd.context)
-   
-    dataFrame = sqlContext.createDataFrame(rdd,  
-                    "origin:string, carrier:string, airline:string, \
-                     delay:float, total:int, avg_delay:float"); 
-    dataFrame.show() 
-    dataFrame.registerTempTable("carrier_delays")
-
-    # Do word count on table using SQL and print it
-    carrier_delays_df = \
-                sqlContext.sql("SELECT origin, carrier, delay/total AS avg_delay1 FROM \
-                    carrier_delays  ORDER BY avg_delay1 ASC LIMIT 10")
-    carrier_delays_df.show()
-
-    #airlines = rdd.takeOrdered(10, key = lambda x: -x[1][0]/airline[1][1])
-    airlines = rdd.takeOrdered(10, key = lambda x : x[3])
-
-    for (x, y, z, a, b, c) in airlines:
-        print("%s, %s, %s: %f, %d, %f" % (x, y, z, a, b, c))
-    print('==========XYZ E===================')
-    return 
 
 config.set('spark.streaming.stopGracefullyOnShutdown', True)
 

@@ -5,27 +5,17 @@ from pyspark.streaming.kafka import KafkaUtils
 from pyspark.sql import SQLContext, Row
 from pyspark.sql.types import *
 
-
-
 import sys
 import time
 import signal 
 
+import itertools 
+import cassandra 
+
+from cassandra.cluster import Cluster
+from cassandra.query import named_tuple_factory 
 from flight import Flight 
-
-#group_by_origin_dest = GROUP in BY (Origin, Dest);
-
-#average_ontime = FOREACH group_by_origin_dest 
-#                 GENERATE FLATTEN(group) AS (Origin, Dest), 
-#                          AVG(in.DepDelay) AS performance_index;
-
-
-#group_by_origin = GROUP average_ontime BY Origin; 
-
-#top_ten_airports = FOREACH group_by_origin {
-#   sorted_airports = ORDER average_ontime BY performance_index ASC;
-#   top_airports = LIMIT sorted_airports 10;
-#   GENERATE FLATTEN(top_airports);
+from itertools import islice, chain
 
 
 config = SparkConf()
@@ -34,54 +24,42 @@ config.set("spark.streaming.stopGracefullyOnShutdown", "true")
 filtered = None 
 ssc = None 
 
-def close_handler(signal, frame): 
-	print('Closing down, print out result ')
-	try: 
-		if filtered: 
-			filtered.foreachRDD(lambda rdd: print_rdd(rdd))
-		if ssc: 
-			ssc.stop(true, true)
-	except: 
-		pass 	
-	sys.exit(0)	 
+def grouper_it(n, iterable):
+    it = iter(iterable)
+    while True:
+        chunk_it = itertools.islice(it, n)
+        try:
+            first_el = next(chunk_it)
+        except StopIteration:
+            return
+        yield itertools.chain((first_el,), chunk_it)
 
-def getSqlContextInstance(sparkContext):
-    if ('sqlContextSingletonInstance' not in globals()):
-        globals()['sqlContextSingletonInstance'] = SQLContext(sparkContext)
-    return globals()['sqlContextSingletonInstance']
 
-def print_rdd(rdd): 
-    print('==========XYZ S===================')
-        # Get the singleton instance of SQLContext
-    if rdd.isEmpty(): 
-        return 
+def save_data_to_DB(iter): 
+    cluster = Cluster() 
+    session = cluster.connect() 
 
-    schema = StructType([
-        StructField("origin", StringType(), True),
-        StructField("delay", FloatType(), True), 
-        StructField("dest", StringType(), True)
-        ])
+    for b in grouper_it(50, iter):
+        print('==========XYZ S===================')
     
-    test_df = getSqlContextInstance(rdd.context).createDataFrame(rdd, schema);  
+        data = ''.join(["""
+    INSERT INTO test.g2e2 (origin, dest, delay)
+    VALUES ('%s',  '%s', %s); \n
+    """ % (r[0], r[1],  str(r[2])) for r in b ])  
+        print(data)
+        session.execute_async("BEGIN BATCH\n" + data + " APPLY BATCH")
+        print('==========XYZ E===================')
     
-    test_df.show() 
-
-    #insert into cassandra 
-    test_df.write\
-    .format("org.apache.spark.sql.cassandra")\
-    .mode('append')\
-    .options(table="g2e2s", keyspace="test")\
-    .save()
-
-    print('==========XYZ E===================')
+    session.shutdown() 
+    
     return 
 
 config.set('spark.streaming.stopGracefullyOnShutdown', True)
 
-#sc = SparkContext(appName='g1ex1', conf=config, pyFiles=['flight.py'])
-signal.signal(signal.SIGINT, close_handler)
-
 sc = SparkContext(appName='g1ex2', conf=config)
+config.set('spark.executor.memory', "16G")
+config.set('spark.driver.memory', "8G")
+   
 sc.setLogLevel("ERROR")
 ssc = StreamingContext(sc, 10)
 ssc.checkpoint('file:///tmp/g1ex2')
@@ -103,10 +81,10 @@ f1 = lines.map(lambda line: line.split(","))\
                 .map(lambda f: ((f.Origin, f.Dest), (f.DepDelay, 1)))\
         		.updateStateByKey(updateFunction)
 
-filtered = f1.map(lambda (x, y): (x[0], y[2], x[1]))
+filtered = f1.map(lambda (x, y): (x[0], x[1], y[2]))
 
-filtered.foreachRDD(lambda rdd: print_rdd(rdd))
-
+#filtered.foreachRDD(lambda rdd: print_rdd(rdd))
+filtered.foreachRDD(lambda rdd: rdd.foreachPartition(save_data_to_DB))
 
 # start streaming process
 ssc.start()

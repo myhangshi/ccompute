@@ -9,7 +9,8 @@ def get_result(sess, city1, city2):
     result = sess.execute(query)
 
     for val in sorted(result, key = lambda r:r.delay)[:10]: 
-	    print val.origin,  val.dest, val.airline, ": %.2f" % val.delay
+	    print val.origin,  val.dest, val.airline, \
+                  val.carrier, ": %.2f" % val.delay
 
 cluster = Cluster()
 session = cluster.connect()

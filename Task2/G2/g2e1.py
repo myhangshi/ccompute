@@ -9,7 +9,14 @@ import sys
 import time
 import signal 
 
+import itertools 
+import cassandra 
+
+from cassandra.cluster import Cluster
+from cassandra.query import named_tuple_factory 
 from flight import Flight 
+from itertools import islice, chain
+
 
 config = SparkConf()
 config.set("spark.streaming.stopGracefullyOnShutdown", "true") 
@@ -17,60 +24,44 @@ config.set("spark.streaming.stopGracefullyOnShutdown", "true")
 filtered = None 
 ssc = None 
 
-def close_handler(signal, frame): 
-	print('Closing down, print out result ')
-	try: 
-		if filtered: 
-			filtered.foreachRDD(lambda rdd: print_rdd(rdd))
-		if ssc: 
-			ssc.stop(true, true)
-	except: 
-		pass 	
-	sys.exit(0)	 
+def grouper_it(n, iterable):
+    it = iter(iterable)
+    while True:
+        chunk_it = itertools.islice(it, n)
+        try:
+            first_el = next(chunk_it)
+        except StopIteration:
+            return
+        yield itertools.chain((first_el,), chunk_it)
 
-def getSqlContextInstance(sparkContext):
-    if ('sqlContextSingletonInstance' not in globals()):
-        globals()['sqlContextSingletonInstance'] = SQLContext(sparkContext)
-    return globals()['sqlContextSingletonInstance']
 
-def print_rdd(rdd): 
-    print('==========XYZ S===================')
-        # Get the singleton instance of SQLContext
-    if rdd.isEmpty(): 
-        return 
+def save_data_to_DB(iter): 
+    cluster = Cluster() 
+    session = cluster.connect() 
 
-    schema = StructType([
-        StructField("origin", StringType(), True),
-        StructField("delay", FloatType(), True), 
-        StructField("carrier", StringType(), True),
-        StructField("airline", StringType(), True)
-        ])
+    for b in grouper_it(50, iter):
+        print('==========XYZ S===================')
     
-    test_df = getSqlContextInstance(rdd.context).createDataFrame(rdd, schema);  
-    #"origin:string, delay:float, carrier:string,  ariline:string");  
-
-    test_df.show() 
-
-    #insert into cassandra 
-    test_df.write\
-    .format("org.apache.spark.sql.cassandra")\
-    .mode('append')\
-    .options(table="g2e1s", keyspace="test")\
-    .save()
-
-    print('==========XYZ E===================')
+        data = ''.join(["""
+    INSERT INTO test.g2e1 (origin, airline, carrier, delay)
+    VALUES ('%s', '%s', '%s', %s); \n
+    """ % (r[0], r[1], r[2], str(r[3])) for r in b ])  
+        print(data)
+        session.execute_async("BEGIN BATCH\n" + data + " APPLY BATCH")
+        print('==========XYZ E===================')
+    
+    session.shutdown() 
+    
     return 
 
 
-
 config.set('spark.streaming.stopGracefullyOnShutdown', True)
-
-#sc = SparkContext(appName='g1ex1', conf=config, pyFiles=['flight.py'])
-signal.signal(signal.SIGINT, close_handler)
-
-
+config.set('spark.executor.memory', "8G")
+config.set('spark.driver.memory', "8G")
+   
 sc = SparkContext(appName='g1ex2', conf=config)
 sc.setLogLevel("ERROR")
+
 ssc = StreamingContext(sc, 10)
 ssc.checkpoint('file:///tmp/g1ex2')
 
@@ -91,10 +82,12 @@ f1 = lines.map(lambda line: line.split(","))\
                 .map(lambda f: ((f.Origin, f.Carrier, f.Airline), (f.DepDelay, 1)))\
         		.updateStateByKey(updateFunction)
 
-filtered = f1.map(lambda (x, y): (x[0], y[2], x[1], x[2]))
+filtered = f1.map(lambda (x, y): (x[0], x[1], x[2], y[2]))
 
-filtered.foreachRDD(lambda rdd: print_rdd(rdd))
+#filtered.foreachRDD(lambda rdd: print_rdd(rdd))
 #filtered.pprint() 
+filtered.foreachRDD(lambda rdd: rdd.foreachPartition(save_data_to_DB))
+
 
 # start streaming process
 ssc.start()

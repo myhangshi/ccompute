@@ -67,8 +67,8 @@ def save_data_to_DB(iter):
 #sc = SparkContext(appName='g1ex1', conf=config, pyFiles=['flight.py'])
 config.set('spark.streaming.stopGracefullyOnShutdown', True)
 
-config.set('spark.executor.memory', "4G")
-config.set('spark.driver.memory', "4G")
+config.set('spark.executor.memory', "16G")
+config.set('spark.driver.memory', "8G")
    
 sc = SparkContext(appName='g1ex2', conf=config)
 sc.setLogLevel("ERROR")

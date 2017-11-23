@@ -7,7 +7,7 @@ def get_result(sess, city):
     #print(query)
     result = sess.execute(query)
 
-    for val in sorted(result, key=lambda r: r.delay)[:10]: 
+    for val in sorted(result, key=lambda r: r.delay)[:15]: 
 	    print val.origin, val.airline, val.carrier, val.delay
 
 cluster = Cluster()

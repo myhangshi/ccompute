@@ -4,21 +4,67 @@
 
 * Table Definitions 
 
-* G1, two problems 
 
-* G2, four problems  
-
-* G3, one problem (3.2)
+G1 Table Definitions 
+CREATE TABLE test.g1e1 ( airport text PRIMARY KEY, count int) 
+CREATE TABLE test.g1e2 ( carrier text PRIMARY KEY, count int, delay float)
+CREATE TABLE test.g1e3 ( weekday int PRIMARY KEY, count int, delay float)
 
 G2 Table Definitions 
 
-CREATE TABLE test.g2e1 (origin text, delay float, airline text, carrier text, PRIMARY KEY (origin, delay) ); 
+CREATE TABLE test.g2e1 (origin text, delay float, airline text, carrier text, PRIMARY KEY (origin, airline) ); 
 
-CREATE TABLE test.g2e2 (origin text, delay float, dest text, PRIMARY KEY (origin, delay) ); 
+CREATE TABLE test.g2e2 (origin text, delay float, dest text, PRIMARY KEY (origin, dest) ); 
 
-CREATE TABLE test.g2e3 (origin text, dest text, delay float, airline text, PRIMARY KEY ((origin, dest), delay)); 
+CREATE TABLE test.g2e3 (origin text, dest text, delay float, airline text, PRIMARY KEY ((origin, dest), airline)); 
 
-CREATE TABLE test.g2e4 (origin text, dest text, delay float, PRIMARY KEY ((origin, dest), delay)); 
+CREATE TABLE test.g2e4 (origin text, dest text, delay float, PRIMARY KEY (origin, dest)); 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 G2E1 Queries 

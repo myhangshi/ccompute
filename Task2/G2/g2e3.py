@@ -25,12 +25,16 @@ config.set("spark.streaming.stopGracefullyOnShutdown", "true")
 filtered = None 
 ssc = None 
 
-def get_chunks(seq, n):
-    # https://stackoverflow.com/a/312464/190597 (Ned Batchelder)
-    """ Yield successive n-sized chunks from seq."""
-    for i in xrange(0, len(seq), n):
-        yield seq[i:i + n]
+#sc = SparkContext(appName='g1ex1', conf=config, pyFiles=['flight.py'])
+config.set('spark.streaming.stopGracefullyOnShutdown', True)
 
+config.set('spark.executor.memory', "16G")
+config.set('spark.driver.memory', "8G")
+   
+sc = SparkContext(appName='g1ex2', conf=config)
+sc.setLogLevel("ERROR")
+ssc = StreamingContext(sc, 10)
+ssc.checkpoint('file:///tmp/g1ex2')
 
 def grouper_it(n, iterable):
     it = iter(iterable)
@@ -41,7 +45,6 @@ def grouper_it(n, iterable):
         except StopIteration:
             return
         yield itertools.chain((first_el,), chunk_it)
-
 
 def save_data_to_DB(iter): 
     cluster = Cluster() 
@@ -61,19 +64,6 @@ def save_data_to_DB(iter):
     session.shutdown() 
     
     return 
-
-
-
-#sc = SparkContext(appName='g1ex1', conf=config, pyFiles=['flight.py'])
-config.set('spark.streaming.stopGracefullyOnShutdown', True)
-
-config.set('spark.executor.memory', "16G")
-config.set('spark.driver.memory', "8G")
-   
-sc = SparkContext(appName='g1ex2', conf=config)
-sc.setLogLevel("ERROR")
-ssc = StreamingContext(sc, 10)
-ssc.checkpoint('file:///tmp/g1ex2')
 
 zkQuorum, topic = sys.argv[1:]
 kvs = KafkaUtils.createStream(ssc, zkQuorum, "spark-streaming-consumer", {topic: 1})

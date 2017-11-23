@@ -37,12 +37,6 @@ def print_rdd(rdd):
         # Get the singleton instance of SQLContext
     if rdd.isEmpty(): 
         return 
-        
-    #airports = rdd.takeOrdered(10, key = lambda x: -x[1])
-    #for airport in airports:
-    #    print("%s,%d" % (airport[0], airport[1]))
-
-
     schema = StructType([
         StructField("airport", StringType(), True),
         StructField("count", IntegerType(), True)
@@ -83,11 +77,10 @@ def updateFunction(newValues, runningCount):
         return sum(newValues, runningCount or 0)
 
 filtered = lines.map(lambda line: line.split(","))\
-        		.flatMap(lambda word: [(word[8], 1), (word[9], 1)] )\
-        		.reduceByKey(lambda a, b: a+b)\
-                .updateStateByKey(updateFunction)
+       		.flatMap(lambda word: [(word[8], 1), (word[9], 1)] )\
+       		.reduceByKey(lambda a, b: a+b)\
+            .updateStateByKey(updateFunction)
 
-#                .transform(lambda rdd: rdd.sortBy(lambda (word, count): -count))
 
 filtered.foreachRDD(lambda rdd: print_rdd(rdd))
 

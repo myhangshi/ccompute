@@ -1,16 +1,12 @@
 from pyspark import SparkContext
 from pyspark import SparkConf
-
 from pyspark.streaming import StreamingContext
 from pyspark.streaming.kafka import KafkaUtils
 from pyspark.sql import SQLContext, Row
-from pyspark.sql.types import *
 
 import sys
 import time
 import signal 
-
-from flight import Flight 
 
 config = SparkConf()
 config.set("spark.streaming.stopGracefullyOnShutdown", "true") 
@@ -18,6 +14,16 @@ config.set("spark.streaming.stopGracefullyOnShutdown", "true")
 filtered = None 
 ssc = None 
 
+def close_handler(signal, frame): 
+	print('Closing down, print out result ')
+	try: 
+		if filtered: 
+			filtered.foreachRDD(lambda rdd: print_rdd(rdd))
+		if ssc: 
+			ssc.stop(true, true)
+	except: 
+		pass 	
+	sys.exit(0)	 
 
 def getSqlContextInstance(sparkContext):
     if ('sqlContextSingletonInstance' not in globals()):
@@ -31,33 +37,33 @@ def print_rdd(rdd):
     if rdd.isEmpty(): 
         return 
 
+    sqlContext = getSqlContextInstance(rdd.context)
+   
+    dataFrame = sqlContext.createDataFrame(rdd,  
+                    "carrier:string, delay:float, total:int")
+    dataFrame.show() 
+    dataFrame.registerTempTable("carrier_delays")
+    # Do word count on table using SQL and print it
+    carrier_delays_df = \
+                sqlContext.sql("SELECT carrier, delay/total AS avg_delay FROM \
+                    carrier_delays  ORDER BY avg_delay ASC LIMIT 10")
+    carrier_delays_df.show()
 
-    schema = StructType([
-        StructField("carrier", StringType(), True),
-        StructField("delay", FloatType(), True),
-        StructField("count", IntegerType(), True)
-        ])
-    
-    test_df = getSqlContextInstance(rdd.context).createDataFrame(rdd, schema);  
-    
-    test_df.show() 
+    #airlines = rdd.takeOrdered(10, key = lambda x: -x[1][0]/airline[1][1])
+    airlines = rdd.takeOrdered(10, key = lambda (x,y, z): float(z)/float(y))
 
-    #insert into cassandra 
-    test_df.write\
-    .format("org.apache.spark.sql.cassandra")\
-    .mode('append')\
-    .options(table="g1e2", keyspace="test")\
-    .save()
-
+    for (x, y, z) in airlines:
+        print("%s, %f,%d" % (x, y/z, z))
     print('==========XYZ E===================')
-
 
 
 config.set('spark.streaming.stopGracefullyOnShutdown', True)
 
+#sc = SparkContext(appName='g1ex1', conf=config, pyFiles=['flight.py'])
+signal.signal(signal.SIGINT, close_handler)
+
 
 sc = SparkContext(appName='g1ex2', conf=config)
-sc.setLogLevel("ERROR")
 ssc = StreamingContext(sc, 10)
 ssc.checkpoint('file:///tmp/g1ex2')
 
@@ -76,11 +82,10 @@ def updateFunction(newValues, runningCount):
 
     return (values, counter) 
 
-filtered = lines.map(lambda line: line.split(","))\
-                .map(lambda f: Flight(f))\
-        		.map(lambda f: (f.Airline+"_" + f.Carrier, (f.ArrDelay, 1)) )\
+filtered = lines.map(lambda line: line.split("\t"))\
+        		.map(lambda word: (word[0]+" " + word[1], (float(word[7]), 1)) )\
         		.updateStateByKey(updateFunction)\
-                .map(lambda (x, y): (x, y[0]/y[1], y[1]) )
+                .map(lambda (x, y): (x, float(y[0]), int(y[1])) )
 
 
 filtered.foreachRDD(lambda rdd: print_rdd(rdd))

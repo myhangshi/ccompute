@@ -71,6 +71,10 @@ The system is essentially a 4 node Apache Hadoop cluster with one namenode and t
 \href{https://spark.apache.org/docs/1.6.2/ec2-scripts.html}{Running Spark on EC2}
 \subsection{NOSQL Database: Cassandra} 
 Cassandra cluster is deployed on the three Hadoop datanodes to provide data replication and scalability. The cluster run on the same rack and utilizes GossipingPropertyFileSnitch scheme. One of the nodes is assigned as the seed provider. Initially version 3.6 is used, but due to the support of group by is missing in 3.6, version 3.11 is used. 
+
+Cassandra Async Batch operation and Data Frame API have been used to insert/update data with Batch operation having less memory requirements, and query scripts are written via Python Cassandra API as well, \href{http://docs.datastax.com/en/drivers/python/3.2/index.html}{Cassandra Python Driver}. 
+
+
 \section{Group 1 Problems} 
 \begin{itemize} 
 \item Problem 1.1: Rank the top 10 most popular airports by numbers of flights to/from the airport.
@@ -126,10 +130,10 @@ df.write.format("org.apache.spark.sql.cassandra")\
 \end{lstlisting}
 \textbf{Data Model or Cassandra Table Definitions: }
 \begin{lstlisting}[basicstyle=\small,language = sql] 
-CREATE TABLE test.g2e1 (origin text, delay float, airline text, carrier text, PRIMARY KEY (origin, delay) ); 
-CREATE TABLE test.g2e2 (origin text, delay float, dest text, PRIMARY KEY (origin, delay) ); 
-CREATE TABLE test.g2e3 (origin text, dest text, delay float, airline text, PRIMARY KEY ((origin, dest), delay)); 
-CREATE TABLE test.g2e4 (origin text, dest text, delay float, PRIMARY KEY ((origin, dest), delay)); 
+CREATE TABLE test.g2e1 (origin text, delay float, airline text, carrier text, PRIMARY KEY (origin, airline) ); 
+CREATE TABLE test.g2e2 (origin text, delay float, dest text, PRIMARY KEY (origin, dest) ); 
+CREATE TABLE test.g2e3 (origin text, dest text, delay float, airline text, PRIMARY KEY ((origin, dest), airline)); 
+CREATE TABLE test.g2e4 (origin text, dest text, delay float, PRIMARY KEY (origin, dest)); 
 \end{lstlisting}
 \section{Group 3, Problem 3.2}
 \begin{itemize}
@@ -174,13 +178,14 @@ CREATE TABLE test.g3e2 (route text, delay float, details text, f1 text, f2 text,
 \item Data preload into HDFS: data  is loaded to HDFS before starting to process it. This way, we can achieve persistent storage in HDFS and fast access from HDFS.
 \item During Kafka streaming, the Spark executor can't handle full speed of Kafka streaming, two approaches are used: 
 \begin{itemize}
-\item Increase the memory when inovking spark streaming; 
+\item Increase the memory when inovking spark streaming for executor and driver; 
 \item Sleep a small interval between streaming two files. 
 \end{itemize} 
 \item For Problem 3.2, the dataset of join results are huge, it is better to do filtering of data for queries. 
 \item AWS DynamoDB are also used in some of the problem. My personal opinion is that it is not as user friendly as Cassandra. 
 \item For cleaned data, it is easier to use a Python data structure (class) to store that during runtime, see the codes in flight.py for details. 
-\item The results from the design of this project do make sense. 
+\item Python Cassandra Batch operation is used to insert and update data to reduce the connection set up and teardown overhead. 
+\item The results from the design of this project do make sense.For question 3, 2, batch operation may work better; for other problems, streaming processing is faster and provides many useful operations such as join, filter, reduce, stateful update, and map transformation. 
 \end{itemize} 
  
 \section{Code and Video Location}

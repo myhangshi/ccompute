@@ -18,11 +18,22 @@ from flight import Flight
 from itertools import islice, chain
 
 
+filtered = None 
+ssc = None 
+
 config = SparkConf()
 config.set("spark.streaming.stopGracefullyOnShutdown", "true") 
 	
-filtered = None 
-ssc = None 
+
+config.set('spark.streaming.stopGracefullyOnShutdown', True)
+
+sc = SparkContext(appName='g1ex2', conf=config)
+config.set('spark.executor.memory', "16G")
+config.set('spark.driver.memory', "8G")
+   
+sc.setLogLevel("ERROR")
+ssc = StreamingContext(sc, 10)
+ssc.checkpoint('file:///tmp/g1ex2')
 
 def grouper_it(n, iterable):
     it = iter(iterable)
@@ -54,15 +65,6 @@ def save_data_to_DB(iter):
     
     return 
 
-config.set('spark.streaming.stopGracefullyOnShutdown', True)
-
-sc = SparkContext(appName='g1ex2', conf=config)
-config.set('spark.executor.memory', "16G")
-config.set('spark.driver.memory', "8G")
-   
-sc.setLogLevel("ERROR")
-ssc = StreamingContext(sc, 10)
-ssc.checkpoint('file:///tmp/g1ex2')
 
 zkQuorum, topic = sys.argv[1:]
 kvs = KafkaUtils.createStream(ssc, zkQuorum, "spark-streaming-consumer", {topic: 1})
